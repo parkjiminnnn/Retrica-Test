@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class MainViewModel(
-    private val filterChain: FilterChain,
+    private val frameProcessor: FrameProcessor,
 ) : ViewModel() {
     private val _frameTime: MutableStateFlow<Long> = MutableStateFlow(0L)
     val frameTime: StateFlow<Long> = _frameTime.asStateFlow()
@@ -25,7 +25,7 @@ class MainViewModel(
         viewModelScope.launch(Dispatchers.Default) {
             try {
                 val startTime = System.nanoTime()
-                filterChain.process(frameData)
+                frameProcessor.process(frameData)
 
                 val elapsedTime = (System.nanoTime() - startTime) / NANOS_IN_MILLISECOND
                 onFrameProcessed(elapsedTime)
@@ -46,8 +46,8 @@ class MainViewModel(
             viewModelFactory {
                 initializer {
                     val filters = listOf(GrayScaleFilter())
-                    val filterChain = FilterChain(filters)
-                    MainViewModel(filterChain = filterChain)
+                    val frameProcessor = FilterChain(filters)
+                    MainViewModel(frameProcessor = frameProcessor)
                 }
             }
     }
