@@ -5,10 +5,10 @@ class GrayScaleFilter : FrameProcessor {
         val uBuffer = input.uPlane
         val vBuffer = input.vPlane
 
-        (0..uBuffer.capacity()).forEach {
+        (0 until uBuffer.capacity()).forEach {
             uBuffer.put(it, NEUTRAL_UV_VALUE.toByte())
         }
-        (0..vBuffer.capacity()).forEach {
+        (0 until vBuffer.capacity()).forEach {
             vBuffer.put(it, NEUTRAL_UV_VALUE.toByte())
         }
         return input
