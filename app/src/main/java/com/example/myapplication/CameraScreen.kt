@@ -1,12 +1,9 @@
 package com.example.myapplication
 
+import android.widget.ImageView
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,57 +20,51 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.ui.Frame
 import java.util.concurrent.Executors
 
 @Composable
 fun CameraScreen(
     modifier: Modifier = Modifier,
-    viewModel: MainViewModel = viewModel(factory = MainViewModel.Factory),
+    viewModel: MainViewModel<Frame> = viewModel(factory = MainViewModel.Factory),
 ) {
     val frameTime by viewModel.frameTime.collectAsStateWithLifecycle()
+    val processedFrame by viewModel.processedFrame.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
     val previewView = remember { PreviewView(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val cameraController =
-        remember {
-            CameraController(
-                context = context,
-                lifecycleOwner = lifecycleOwner,
-                analyzer = { viewModel.analyzeFrame(it) },
-                analysisExecutor = analysisExecutor,
-            )
-        }
-    LaunchedEffect(Unit) {
-        cameraController.startCamera(previewView)
-    }
-    DisposableEffect(Unit) {
-        onDispose {
-            cameraController.shutdown()
-        }
+        remember { CameraController(context, lifecycleOwner, analysisExecutor) }
+
+    val imageView = remember { ImageView(context) }
+    val renderer = remember { YUVRenderer(imageView) }
+
+    LaunchedEffect(Unit) { cameraController.startCamera(previewView) { viewModel.analyzeFrame(it) } }
+    DisposableEffect(Unit) { onDispose { cameraController.shutdown() } }
+
+    LaunchedEffect(processedFrame) {
+        processedFrame?.let { renderer.render(it as YUVFrame) }
     }
 
     Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .padding(WindowInsets.systemBars.asPaddingValues()),
+        modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier.weight(1f),
-        )
+        AndroidView(factory = { previewView }, modifier = Modifier.weight(1f))
+
+        AndroidView(factory = { imageView }, modifier = Modifier.weight(1f))
 
         Text(text = "$frameTime ms", fontSize = 40.sp)
-        Button(onClick = { cameraController.switchCamera(previewView) }) {
+        Button(onClick = { cameraController.switchCamera(previewView) { viewModel.analyzeFrame(it) } }) {
             Text(text = "카메라 전환")
         }
     }
 }
 
 @Composable
-@Preview
+@Preview(showBackground = true)
 private fun CameraScreenPreview() {
     CameraScreen()
 }

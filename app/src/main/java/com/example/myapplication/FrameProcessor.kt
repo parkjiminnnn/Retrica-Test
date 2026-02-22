@@ -1,5 +1,7 @@
 package com.example.myapplication
 
-interface FrameProcessor {
-    suspend fun process(input: FrameData): FrameData
+import com.example.myapplication.ui.Frame
+
+interface FrameProcessor<T : Frame> {
+    suspend fun process(frame: T): T
 }
