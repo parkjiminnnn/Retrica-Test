@@ -1,7 +1,6 @@
 package com.example.myapplication
 
 import androidx.camera.core.ImageProxy
-import com.example.myapplication.ui.Frame
 import java.nio.ByteBuffer
 
 data class YUVFrame(
