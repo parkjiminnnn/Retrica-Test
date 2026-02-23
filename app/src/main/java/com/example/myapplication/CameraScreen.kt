@@ -3,7 +3,11 @@ package com.example.myapplication
 import android.widget.ImageView
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,18 +45,25 @@ fun CameraScreen(
     val renderer = remember { YUVRenderer(imageView) }
 
     LaunchedEffect(Unit) { cameraController.startCamera(previewView) { viewModel.analyzeFrame(it) } }
-    DisposableEffect(Unit) { onDispose { cameraController.shutdown() } }
+    DisposableEffect(Unit) {
+        onDispose {
+            cameraController.shutdown()
+            renderer.release()
+        }
+    }
 
     LaunchedEffect(processedFrame) {
         processedFrame?.let { renderer.render(it as YUVFrame) }
     }
 
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(WindowInsets.systemBars.asPaddingValues()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AndroidView(factory = { previewView }, modifier = Modifier.weight(1f))
-
         AndroidView(factory = { imageView }, modifier = Modifier.weight(1f))
 
         Text(text = "$frameTime ms", fontSize = 40.sp)
