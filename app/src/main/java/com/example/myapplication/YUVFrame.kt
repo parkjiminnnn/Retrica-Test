@@ -9,7 +9,6 @@ data class YUVFrame(
     val vPlane: ByteBuffer,
     override val width: Int,
     override val height: Int,
-    override val timestamp: Long,
 ) : Frame
 
 fun ImageProxy.toYUVFrame(): YUVFrame {
@@ -19,5 +18,5 @@ fun ImageProxy.toYUVFrame(): YUVFrame {
     uPlane.put(planes[1].buffer).rewind()
     val vPlane = ByteBuffer.allocate(planes[2].buffer.capacity())
     vPlane.put(planes[2].buffer).rewind()
-    return YUVFrame(yPlane, uPlane, vPlane, width, height, imageInfo.timestamp)
+    return YUVFrame(yPlane, uPlane, vPlane, width, height)
 }
