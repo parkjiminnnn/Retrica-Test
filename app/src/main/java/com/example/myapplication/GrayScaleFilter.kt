@@ -1,7 +1,7 @@
 package com.example.myapplication
 
 class GrayScaleFilter : FrameProcessor<YUVFrame> {
-    override suspend fun process(frame: YUVFrame): YUVFrame {
+    override fun process(frame: YUVFrame): YUVFrame {
         val uBuffer = frame.uPlane
         val vBuffer = frame.vPlane
 

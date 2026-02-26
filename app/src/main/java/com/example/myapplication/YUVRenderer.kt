@@ -7,8 +7,11 @@ import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
@@ -17,71 +20,82 @@ class YUVRenderer(
     imageView: ImageView,
 ) : Renderer<YUVFrame> {
     private val imageViewRef = WeakReference(imageView)
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
+    private val scope = CoroutineScope(Job() + Dispatchers.Default)
+
+    private val frameFlow = MutableSharedFlow<YUVFrame>(extraBufferCapacity = 1)
+
     private var bitmap: Bitmap? = null
-    private var lastJob: Job? = null
+    private var pixels: IntArray? = null
 
-    override fun render(frame: YUVFrame) {
-        lastJob?.cancel()
-
-        lastJob =
-            scope.launch {
-                val width = frame.width
-                val height = frame.height
-
-                val bmp =
-                    bitmap?.takeIf { it.width == width && it.height == height }
-                        ?: createBitmap(width, height).also { bitmap = it }
-
-                convertYUVToRGB(width, height, frame, bmp)
-
-                withContext(Dispatchers.Main) {
-                    imageViewRef.get()?.setImageBitmap(bmp)
-//                    onFrameRendered()
-                }
-            }
+    init {
+        startWorker()
     }
 
-    // fps 로그 확인 로직
-//    private var frameCount = 0
-//    private var lastTime = System.currentTimeMillis()
-//
-//    fun onFrameRendered() {
-//        frameCount++
-//        val now = System.currentTimeMillis()
-//        if (now - lastTime >= 1000) {
-//            val fps = frameCount
-//            frameCount = 0
-//            lastTime = now
-//            Log.d("FPS", "FPS: $fps")
-//        }
-//    }
+    override fun render(frame: YUVFrame) {
+        frameFlow.tryEmit(frame)
+    }
+
+    fun release() {
+        scope.cancel()
+    }
+
+    private fun startWorker() {
+        scope.launch {
+            frameFlow.collectLatest {
+                processFrame(it)
+            }
+        }
+    }
+
+    private suspend fun processFrame(frame: YUVFrame) {
+        val width = frame.width
+        val height = frame.height
+
+        val bmp =
+            bitmap?.takeIf { it.width == width && it.height == height }
+                ?: createBitmap(width, height).also { bitmap = it }
+
+        val buffer =
+            pixels?.takeIf { it.size == width * height }
+                ?: IntArray(width * height).also { pixels = it }
+
+        convertYUVToRGB(width, height, frame, buffer)
+
+        if (!currentCoroutineContext().isActive) return
+
+        bmp.setPixels(buffer, 0, width, 0, 0, width, height)
+
+        withContext(Dispatchers.Main) {
+            imageViewRef.get()?.setImageBitmap(bmp)
+        }
+    }
 
     private fun convertYUVToRGB(
         width: Int,
         height: Int,
         frame: YUVFrame,
-        bmp: Bitmap,
+        pixels: IntArray,
     ) {
-        val pixels = IntArray(width * height)
-
         val y = frame.yPlane
         val u = frame.uPlane
         val v = frame.vPlane
 
         for (j in 0 until height) {
-            val uvRow = (j / 2) * (width / 2)
+            val uvRow = (j shr 1) * (width shr 1)
+            val yRow = j * width
+
             for (i in 0 until width) {
-                val yIndex = j * width + i
-                val uvIndex = uvRow + (i / 2)
+                val yIndex = yRow + i
+                val uvIndex = uvRow + (i shr 1)
 
                 val yValue = y[yIndex].toInt() and 0xFF
                 val uValue = (u[uvIndex].toInt() and 0xFF) - 128
                 val vValue = (v[uvIndex].toInt() and 0xFF) - 128
 
-                var r = (yValue + 1.402 * vValue).toInt()
-                var g = (yValue - 0.344136 * uValue - 0.714136 * vValue).toInt()
-                var b = (yValue + 1.772 * uValue).toInt()
+                var r = (yValue + 1.402f * vValue).toInt()
+                var g = (yValue - 0.344136f * uValue - 0.714136f * vValue).toInt()
+                var b = (yValue + 1.772f * uValue).toInt()
 
                 r = r.coerceIn(0, 255)
                 g = g.coerceIn(0, 255)
@@ -90,10 +104,5 @@ class YUVRenderer(
                 pixels[yIndex] = Color.rgb(r, g, b)
             }
         }
-        bmp.setPixels(pixels, 0, width, 0, 0, width, height)
-    }
-
-    fun release() {
-        scope.cancel()
     }
 }
